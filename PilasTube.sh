@@ -131,10 +131,28 @@ pm_write_device_txt() {
     local f="$APP_DIR/device.txt"
     [ -f "$f" ] && return 0
     local fw fh fbrc
-    fw="$(cut -d, -f1 /sys/class/graphics/fb0/virtual_size 2>/dev/null || true)"
-    fh="$(cut -d, -f2 /sys/class/graphics/fb0/virtual_size 2>/dev/null || true)"
+    # Knulli / Miyoo Flip fix: probe actual mode first because virtual_size contains multi-buffering height (e.g. 640x1440)
+    # Uses POSIX-safe syntax compatible with bash, ash, and dash without regex bashisms
+    if [ -r /sys/class/graphics/fb0/mode ]; then
+        local fb_m
+        fb_m="$(tr -d '\r\n' < /sys/class/graphics/fb0/mode 2>/dev/null)"
+        case "$fb_m" in
+            *x*)
+                fw="$(echo "$fb_m" | sed 's/.*://' | cut -dx -f1 | tr -dc '0-9')"
+                fh="$(echo "$fb_m" | sed 's/.*://' | cut -dx -f2 | cut -dp -f1 | cut -dr -f1 | tr -dc '0-9')"
+                ;;
+        esac
+    fi
+    if [ -z "$fw" ] || [ -z "$fh" ]; then
+        fw="$(cut -d, -f1 /sys/class/graphics/fb0/virtual_size 2>/dev/null || true)"
+        fh="$(cut -d, -f2 /sys/class/graphics/fb0/virtual_size 2>/dev/null || true)"
+    fi
     case "$fw" in ''|*[!0-9]*) fw=640;; esac
     case "$fh" in ''|*[!0-9]*) fh=480;; esac
+    # Guard against 640x1440 virtual_size on 640x480 panels
+    if [ "$fw" = "640" ] && [ "$fh" = "1440" ]; then
+        fh=480
+    fi
     local dname="PortMaster handheld"
     [ -r /sys/firmware/devicetree/base/model ] && \
         dname="$(tr -d '\000' < /sys/firmware/devicetree/base/model | head -c 40)"

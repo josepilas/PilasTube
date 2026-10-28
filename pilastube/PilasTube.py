@@ -111,6 +111,7 @@ from utils import (
     SDL_HAT_RIGHT,
     SDL_HAT_UP,
     SDL_IMAGE_AVAILABLE,
+    SDL_INIT_AUDIO,
     SDL_INIT_GAMECONTROLLER,
     SDL_INIT_JOYSTICK,
     SDL_INIT_VIDEO,
@@ -196,6 +197,14 @@ class PilasTubeApp(auth.AuthMixin, player.PlayerMixin, ui.UIMixin):
         except Exception:
             LOG("SDL_Init OK", "SDL")
 
+        # Knulli / Miyoo Flip fix: Initialize audio subsystem on the main thread during startup.
+        # Initializing it later on background threads can cause race conditions or SIGSEGV with PipeWire/ALSA.
+        try:
+            if hasattr(sdl2, "SDL_InitSubSystem"):
+                sdl2.SDL_InitSubSystem(SDL_INIT_AUDIO)
+        except Exception as _ea:
+            LOG("SDL audio init warning (main thread): %s" % _ea, "SDL")
+
         # v0.3.9: SDL video is initialised - THE ONLY PLACE IT EVER IS,
         # exactly like v0.3.7 (0.3.8 also initialised it at utils import
         # and that contributed to the KMSDRM black-screen regression).
@@ -214,8 +223,16 @@ class PilasTubeApp(auth.AuthMixin, player.PlayerMixin, ui.UIMixin):
                 except TypeError:
                     _dm_ref = _dm
                 if _get_dm(0, _dm_ref) == 0:
-                    utils.refresh_geometry(int(getattr(_dm, "w", 0) or 0),
-                                           int(getattr(_dm, "h", 0) or 0))
+                    # Knulli / Miyoo Flip fix: propagate refreshed SDL desktop geometry into local module variables
+                    if utils.refresh_geometry(int(getattr(_dm, "w", 0) or 0),
+                                           int(getattr(_dm, "h", 0) or 0)):
+                        global WINDOW_WIDTH, WINDOW_HEIGHT, SCREEN_WIDTH, SCREEN_HEIGHT, UI_SCALE, SCALE_MODE
+                        WINDOW_WIDTH = utils.WINDOW_WIDTH
+                        WINDOW_HEIGHT = utils.WINDOW_HEIGHT
+                        SCREEN_WIDTH = utils.SCREEN_WIDTH
+                        SCREEN_HEIGHT = utils.SCREEN_HEIGHT
+                        UI_SCALE = utils.UI_SCALE
+                        SCALE_MODE = utils.SCALE_MODE
         except Exception:
             pass
         if ttf.TTF_Init() != 0:

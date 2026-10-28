@@ -1,0 +1,15 @@
+# Auto-detect text files and normalize line endings to LF on checkout
+* text=auto eol=lf
+*.sh text eol=lf
+*.py text eol=lf
+*.txt text eol=lf
+*.md text eol=lf
+*.json text eol=lf
+
+# Binary files
+*.png binary
+*.webp binary
+*.jpg binary
+*.jpeg binary
+*.ttf binary
+yt-dlp binary

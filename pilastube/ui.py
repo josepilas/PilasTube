@@ -113,8 +113,16 @@ class UIMixin(object):
     Hosted by PilasTubeApp; all state lives on self."""
     # ------------------------------------------------------------------ setup
     def _find_font(self):
+        # Knulli / Miyoo Flip fix: search Knulli (Batocera-based) font paths and Knulli's PortMaster location.
+        # Standard PortMaster on Knulli lives at /userdata/system/.local/share/PortMaster.
+        # Batocera/Knulli system fonts live at /usr/share/fonts/dejavu/DejaVuSans.ttf (without 'truetype/').
         paths = [
             os.path.join(SCRIPT_DIR, "font.ttf"),
+            "/userdata/system/.local/share/PortMaster/themes/default.ttf",
+            "/userdata/system/.local/share/PortMaster/theme/default.ttf",
+            "/usr/share/fonts/dejavu/DejaVuSans.ttf",
+            "/usr/share/fonts/cantarell/Cantarell-Regular.ttf",
+            "/usr/share/fonts/liberation/LiberationSans-Regular.ttf",
             "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
             "/usr/share/fonts/TTF/DejaVuSans.ttf",
             "/opt/system/Tools/PortMaster/themes/default.ttf",
@@ -122,6 +130,15 @@ class UIMixin(object):
         for p in paths:
             if os.path.exists(p):
                 return p
+        # Fallback for Knulli: scan /usr/share/fonts recursively for any usable TTF font
+        import glob
+        for font_candidate in glob.glob("/usr/share/fonts/**/*.ttf", recursive=True):
+            if os.path.isfile(font_candidate):
+                return font_candidate
+        # Fallback for PortMaster themes: scan theme directory
+        for font_candidate in glob.glob("/userdata/system/.local/share/PortMaster/**/*.ttf", recursive=True):
+            if os.path.isfile(font_candidate):
+                return font_candidate
         return None
 
     def _apply_theme(self):

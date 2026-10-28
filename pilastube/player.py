@@ -397,7 +397,11 @@ class FFPlayer(object):
         # "Option reconnect not found" when they meet a local file input,
         # so they are only added for network URLs
         if str(self.video_url).startswith(("http://", "https://")):
-            cmd += ["-reconnect", "1", "-reconnect_streamed", "1",
+            # Knulli / Miyoo Flip fix: YouTube googlevideo.com streams reject ffmpeg's default Lavf user-agent with HTTP 403.
+            # Passing a browser User-Agent matching yt-dlp allows the raw streams to decode without 403 Forbidden errors.
+            ua = getattr(YX, "USER_AGENT", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+            cmd += ["-user_agent", ua,
+                    "-reconnect", "1", "-reconnect_streamed", "1",
                     "-reconnect_delay_max", "4"]
             # v3.2 route flavors (SmartTube-style): OkHttp = connection
             # reuse; Cronet = reuse + resilience (Chromium-style stack)
@@ -1019,7 +1023,8 @@ class PlayerMixin(object):
         if not self.ytdlp_path:
             self.set_status(self.t("msg_no_ytdlp"), "error")
             return
-        if not self.video_player:
+        # Knulli / Miyoo Flip fix: if built-in ffmpeg player is available, external player is not required
+        if not self.video_player and not USE_BUILTIN_PLAYER:
             self.set_status(self.t("msg_no_player"), "error")
             return
 

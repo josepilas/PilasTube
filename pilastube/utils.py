@@ -356,22 +356,40 @@ _USER_BLOCK_MARK = "# ---- user overrides"
 
 
 def _probe_fb_size():
-    """Framebuffer size via sysfs ("1024,768") - launcher-era fallback."""
-    try:
-        raw = open("/sys/class/graphics/fb0/virtual_size").read().strip()
-        w, h = [int(v) for v in raw.split(",")]
-        if 320 <= w <= 4096 and 240 <= h <= 4096:
-            return w, h
-    except Exception:
-        pass
+    """Framebuffer size via sysfs - launcher-era fallback.
+    Knulli / Miyoo Flip fix: probe 'mode' before 'virtual_size'.
+    On Rockchip fbdev with double/triple buffering, 'virtual_size' returns
+    the multi-buffer height (e.g. 640,1440 for 3x 480 buffers), whereas 'mode'
+    contains the actual physical panel resolution (e.g. U:640x480p-60)."""
     try:
         raw = open("/sys/class/graphics/fb0/mode").read().strip()
-        # "a:1024x768r-60" style
+        # "U:640x480p-60" or "a:1024x768r-60" or "640x480" style
         if "x" in raw:
-            body = raw.split(":")[-1].split("r")[0]
+            body = raw.split(":")[-1].split("r")[0].split("p")[0]
             w, h = [int(v) for v in body.split("x")[:2]]
             if 320 <= w <= 4096 and 240 <= h <= 4096:
                 return w, h
+    except Exception:
+        pass
+    try:
+        # Also check fb0/modes (first available mode)
+        for line in open("/sys/class/graphics/fb0/modes"):
+            line = line.strip()
+            if "x" in line:
+                body = line.split(":")[-1].split("r")[0].split("p")[0]
+                w, h = [int(v) for v in body.split("x")[:2]]
+                if 320 <= w <= 4096 and 240 <= h <= 4096:
+                    return w, h
+    except Exception:
+        pass
+    try:
+        raw = open("/sys/class/graphics/fb0/virtual_size").read().strip()
+        w, h = [int(v) for v in raw.split(",")]
+        # On Miyoo Flip / RK3566 with 640x1440 (triple buffered 480p), normalize back to 480
+        if w == 640 and h in (960, 1440):
+            h = 480
+        if 320 <= w <= 4096 and 240 <= h <= 4096:
+            return w, h
     except Exception:
         pass
     return None
@@ -645,7 +663,9 @@ def _apply_geometry(geo):
     SCALE_MODE = geo["scale_mode"]
     FILL_SCALE_X = geo["fill_x"]
     FILL_SCALE_Y = geo["fill_y"]
-    for _mod_name in ("ui", "player", "auth", "PilasTube"):
+    # Knulli / Miyoo Flip fix: PilasTube.py executes as '__main__'. Include '__main__'
+    # so that module-level geometry constants in PilasTube.py are updated by refresh_geometry().
+    for _mod_name in ("ui", "player", "auth", "PilasTube", "__main__"):
         _mod = sys.modules.get(_mod_name)
         if _mod is None:
             continue
